@@ -3,5 +3,5 @@ pandas
 numpy
 matplotlib
 seaborn
-st-aggrid
+streamlit-aggrid
 sendgrid
