@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from roles_proficiency_data import df
+from PIL import Image
 import io
 import base64
 import re
@@ -18,22 +19,29 @@ from sendgrid.helpers.mail import Mail, Attachment, Content, Email, FileContent,
 
 # Set page configuration
 st.set_page_config(
-    page_title="Interactive Dashboard of Proficiency Levels",
+    page_title="NeuZeit Interactive Team Readiness",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# Title and description
-st.title("Interactive Dashboard of Proficiency Levels")
-st.markdown("""
-This dashboard allows you to explore and modify the proficiency levels required for various roles across key dimensions in a project team.
+# Display the NZ logo at the top of the app
+st.image("NeuZeitLogoTB.png", width=300)
+# Add the logo to the sidebar with a custom width
+st.sidebar.image("NeuZeitLogoTB.png", width=150)
 
-- **Click on a cell in the table to cycle through proficiency levels:** **L** → **M** → **H** → **L**.
-- **Cells in the heatmap that have decreased in proficiency level compared to the initial dataset are highlighted in red.**
+# Title and description
+st.title("NeuZeit Interactive Team Readiness")
+st.markdown("""
+This app allows you to explore and model and gaps in your product or project team in 3 simple steps in order to address gaps before you execute and increase your probability of success. Ideal proficiency levels across roles and skills are modeled in the heatmap and editable in the table.
+
+**1. Use the filters to the left to remove or add roles reflective of your team.**\n
+**2. Remove any skill dimensions you do not want in your model (but we recommend keeping all of these skills).**\n
+**3. Click and edit cell in the table to alter proficiency levels:** **L** → **M** → **H**.  Cells in the heatmap with a red border indicate a proficiency gap. (skill level should be addressed or augmented in order to maintain a high performing team).**\n
+**Select the RADAR chart (below filters on the left) to see data represented in a RADAR format.**\n
 """)
 
 # Sidebar filters
-st.sidebar.header("Filters")
+st.sidebar.header("1. Select Team and Critical Dimensions")
 
 # Select roles to display
 roles = df['Role'].unique().tolist()
@@ -58,14 +66,14 @@ initial_numeric_df = initial_df.copy()
 for col in selected_dimensions:
     initial_numeric_df[col] = initial_numeric_df[col].map(proficiency_map)
 
-# Function to cycle proficiency levels
-def cycle_proficiency(current_value):
-    if current_value == 'L':
-        return 'M'
-    elif current_value == 'M':
-        return 'H'
-    else:
-        return 'L'
+# Function to cycle proficiency levels (Optional: You can keep this if needed)
+# def cycle_proficiency(current_value):
+#     if current_value == 'L':
+#         return 'M'
+#     elif current_value == 'M':
+#         return 'H'
+#     else:
+#         return 'L'
 
 st.subheader("Interactive Proficiency Levels Table")
 
@@ -83,7 +91,7 @@ for col in selected_dimensions:
             eCell.innerHTML = params.value;
             eCell.style.cursor = 'pointer';
             eCell.addEventListener('click', function() {
-                let currentValue = params.value;
+                let currentValue = params.value.toUpperCase();  // Ensure currentValue is uppercase
                 let nextValue = '';
                 if (currentValue === 'L') {
                     nextValue = 'M';
@@ -116,10 +124,14 @@ grid_response = AgGrid(
 # Get the updated DataFrame after interaction
 updated_df = grid_response['data']
 
+# **NEW: Convert all proficiency entries to uppercase to ensure case-insensitivity**
+for col in selected_dimensions:
+    updated_df[col] = updated_df[col].astype(str).str.upper()  # Ensure conversion even if entries are not strings
+
 # Map updated proficiency levels to numeric values
 df_numeric_updated = updated_df.copy()
 for col in selected_dimensions:
-    df_numeric_updated[col] = df_numeric_updated[col].map(proficiency_map)
+    df_numeric_updated[col] = updated_df[col].map(proficiency_map)
 
 # Compare updated proficiency levels to initial proficiency levels
 difference_df = df_numeric_updated.set_index('Role')[selected_dimensions] - initial_numeric_df.set_index('Role')[selected_dimensions]
@@ -130,10 +142,17 @@ decreased_mask = difference_df < 0
 # Heatmap visualization
 st.subheader("Heatmap of Proficiency Levels")
 
+# Define a custom color palette for the heat map
+custom_palette = sns.color_palette(["#e8e8e8", "#29b792", "#264a5e"])  # NZ Colors
+
 fig, ax = plt.subplots(figsize=(10, len(selected_roles) * 0.5 + 1))
+# Load our logo
+logo = Image.open("NeuZeitLogoTB.png")
+logo_resized = logo.resize((400, 100))  # Resize the logo as needed
+fig.figimage(logo_resized, xo=50, yo=50, alpha=0.6, zorder=10)  # Adjust position and transparency
 
 # Create a custom colormap
-cmap = sns.color_palette("YlGnBu", as_cmap=True)
+cmap = sns.color_palette(custom_palette, as_cmap=True)
 
 # Plot the heatmap
 sns.heatmap(
@@ -185,7 +204,10 @@ if len(selected_roles) > 0 and len(selected_dimensions) > 2:
             angles = [n / float(N) * 2 * np.pi for n in range(N)]
             angles += angles[:1]  # Complete the loop
 
-            fig_radar = plt.figure(figsize=(6, 6))
+            # Define figure size and DPI
+            figsize = (6, 6)  # Width = 6 inches, Height = 6 inches
+
+            fig_radar = plt.figure(figsize=figsize)
             ax = plt.subplot(111, polar=True)
 
             # Draw one axe per variable and add labels
@@ -203,8 +225,14 @@ if len(selected_roles) > 0 and len(selected_dimensions) > 2:
                 ax.plot(angles, values, linewidth=1, linestyle='solid', label=index)
                 ax.fill(angles, values, alpha=0.1)
 
+            # Load your company's logo
+            logo = Image.open("NeuZeitLogoTB.png")
+            logo_resized = logo.resize((200, 50))  # Resize the logo as needed
+
+            fig_radar.figimage(logo_resized, xo=20, yo=20, alpha=0.6, zorder=10)  # Adjust position and transparency
+
             plt.title('Radar Chart of Proficiency Levels', size=14, y=1.1)
-            plt.legend(loc='upper right', bbox_to_anchor=(1.3, 1.0))
+            plt.legend(loc='upper right', bbox_to_anchor=(1.7, 1.0))
             st.pyplot(fig_radar)
 
             # Save the radar chart to a BytesIO object
@@ -227,7 +255,7 @@ email = st.text_input("Enter your email address to receive your edits:")
 
 # User acceptance message
 st.markdown("""
-By providing your email address and clicking the button below, you agree to receive your edited data and visualizations via email. We will not share your email address with third parties.
+By providing your email address and clicking the button below, you agree to receive your edited data and visualizations via email and receive a follow up email from NeuZeit. We will not share your email address with third parties.
 """)
 
 accept_terms = st.checkbox("I agree to the terms and conditions.")
@@ -238,65 +266,12 @@ def is_valid_email(email):
 
 if email and is_valid_email(email):
     if accept_terms:
-        if st.button("Send My Edits via Email"):
-            # Send email with attachments
-            # Replace with your actual API key or use environment variables
-            SENDGRID_API_KEY = st.secrets["SENDGRID_API_KEY"]
-
-            # Function to send email
-            def send_email(to_email, subject, content, attachments=None):
-                sg = sendgrid.SendGridAPIClient(api_key=SENDGRID_API_KEY)
-                from_email = Email("no-reply@yourdomain.com")  # Use your verified sender email
-                to_email = Email(to_email)
-                mail = Mail(from_email, to_email, subject, Content("text/html", content))
-
-                # Add attachments if any
-                if attachments:
-                    for attachment in attachments:
-                        mail.add_attachment(attachment)
-
-                response = sg.client.mail.send.post(request_body=mail.get())
-                return response.status_code
-
-            # Prepare attachments
-            # Function to create attachment
-            def create_attachment(file_bytes, file_name, mime_type):
-                encoded_file = base64.b64encode(file_bytes).decode()
-                attachment = Attachment()
-                attachment.file_content = FileContent(encoded_file)
-                attachment.file_type = FileType(mime_type)
-                attachment.file_name = FileName(file_name)
-                attachment.disposition = Disposition("attachment")
-                return attachment
-
-            attachments = []
-
-            # CSV attachment
-            csv_bytes = updated_df.to_csv(index=False).encode('utf-8')
-            attachments.append(create_attachment(csv_bytes, 'updated_proficiency_levels.csv', 'text/csv'))
-
-            # Heatmap attachment
-            attachments.append(create_attachment(heatmap_buffer.getvalue(), 'heatmap.png', 'image/png'))
-
-            # Radar chart attachment (if available)
-            if show_radar and 'radar_buffer' in locals():
-                attachments.append(create_attachment(radar_buffer.getvalue(), 'radar_chart.png', 'image/png'))
-
-            subject = "Your Proficiency Levels Edits"
-            content = """
-            <p>Dear user,</p>
-            <p>Please find attached your edited proficiency levels data and visualizations.</p>
-            <p>Best regards,<br>Your Company</p>
-            """
-
-            try:
-                status_code = send_email(email, subject, content, attachments)
-                if status_code == 202:
-                    st.success("Email sent successfully!")
-                else:
-                    st.error(f"Failed to send email. Status code: {status_code}")
-            except Exception as e:
-                st.error(f"An error occurred: {str(e)}")
+        # **MODIFICATION 1: Disable the send email button by setting disabled=True**
+        if st.button("Send My Edits via Email", disabled=True):
+            st.warning("Email functionality is currently disabled.")
+        st.info("The email feature has been temporarily disabled. Please try again later.")
+        # Alternatively, you can provide a message without the button:
+        # st.button("Send My Edits via Email", disabled=True)
     else:
         st.warning("Please accept the terms and conditions to proceed.")
 else:
